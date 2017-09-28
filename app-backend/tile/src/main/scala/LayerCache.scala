@@ -11,6 +11,7 @@ import com.azavea.rf.database.Database
 import com.azavea.rf.database.tables._
 import com.azavea.rf.common.{Config => CommonConfig}
 
+import com.azavea.maml.ast.Expression
 import io.circe.syntax._
 import geotrellis.raster._
 import geotrellis.raster.render._

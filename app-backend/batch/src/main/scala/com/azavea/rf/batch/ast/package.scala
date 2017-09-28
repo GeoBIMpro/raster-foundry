@@ -80,7 +80,7 @@ package object ast {
     case SceneRaster(id, _, _, _, _) => Right(rdds(id))
     case ProjectRaster(id, _, _, _, _) => Right(rdds(id))
     case Source(id, _) => Right(rdds(id))
-    case LiteralRaster(_, _, _) =>
+    case LiteralTile(_, _, _) =>
       sys.error("Export: If you're seeing this, there is an error in the AST validation logic.")
     case Constant(id, const, _) =>
       sys.error("Export: If you're seeing this, there is an error in the AST validation logic.")

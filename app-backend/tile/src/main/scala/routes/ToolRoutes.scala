@@ -1,26 +1,30 @@
 package com.azavea.rf.tile.routes
 
-import com.azavea.rf.tile.image._
+import com.azavea.rf.common._
+import com.azavea.rf.common.ast._
+import com.azavea.rf.database.Database
+import com.azavea.rf.datamodel.User
 import com.azavea.rf.tile._
+import com.azavea.rf.tile.image._
+import com.azavea.rf.tile.tool.TileSources
+import com.azavea.rf.tool.ast._
+import com.azavea.rf.tool.eval._
+import com.azavea.rf.tool.maml._
 
+import com.azavea.maml.ast._
+import com.azavea.maml.eval._
+import com.azavea.maml.util._
+
+import com.typesafe.scalalogging.LazyLogging
+import de.heikoseeberger.akkahttpcirce.CirceSupport._
+import geotrellis.raster._
+import geotrellis.raster.render._
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.{ContentType, HttpEntity, MediaTypes, StatusCodes}
 import akka.http.scaladsl.server._
 import cats.data.Validated._
 import cats.data.{NonEmptyList => NEL, _}
 import cats.implicits._
-import com.azavea.rf.common._
-import com.azavea.rf.common.ast._
-import com.azavea.rf.database.Database
-import com.azavea.rf.datamodel.User
-import com.azavea.rf.tile._
-import com.azavea.rf.tile.tool.TileSources
-import com.azavea.rf.tool.ast._
-import com.azavea.rf.tool.eval._
-import com.typesafe.scalalogging.LazyLogging
-import de.heikoseeberger.akkahttpcirce.CirceSupport._
-import geotrellis.raster._
-import geotrellis.raster.render._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
@@ -122,7 +126,6 @@ class ToolRoutes(implicit val database: Database) extends Authentication
     }
   }
 
-
   /** The central endpoint for ModelLab; serves TMS tiles given a [[ToolRun]] specification */
   def tms(
     toolRunId: UUID, user: User,
@@ -139,9 +142,10 @@ class ToolRoutes(implicit val database: Database) extends Authentication
               val nodeId = node.map(UUID.fromString(_))
               val colorRamp = providedRamps.get(colorRampName).getOrElse(providedRamps("viridis"))
               val responsePng: OptionT[Future, Png] = for {
-                ast   <- LayerCache.toolEvalRequirements(toolRunId, nodeId, user)
+                (ast, md) <- LayerCache.toolEvalRequirements(toolRunId, nodeId, user).map(_.asMaml)
                 tile  <- OptionT({
-                        val literalAst: Future[Interpreted[MapAlgebraAST]] = BufferingInterpreter.literalize(ast, source, z, x, y)
+                        val literalAst: Future[Interpreted[MapAlgebraAST]] =
+                          BufferingInterpreter.literalize(ast, source, z, x, y)
                         val futureTile: Future[Interpreted[Tile]] = literalAst.map({ validatedAst =>
                           validatedAst.andThen({ resolvedAst =>
                             logger.debug(s"Attempting to retrieve TMS tile at $z/$x/$y")
@@ -165,8 +169,8 @@ class ToolRoutes(implicit val database: Database) extends Authentication
                 cMap  <- LayerCache.toolRunColorMap(toolRunId, nodeId, user, colorRamp, colorRampName)
               } yield {
                 logger.debug(s"Tile successfully produced at $z/$x/$y")
-                ast.metadata.flatMap({ md =>
-                  md.renderDef.map({ renderDef => tile.renderPng(renderDef) })
+                md.flatMap({ meta =>
+                  meta.renderDef.map({ renderDef => tile.renderPng(renderDef) })
                 }).getOrElse(tile.renderPng(cMap))
               }
               responsePng.value

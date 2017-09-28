@@ -1,4 +1,4 @@
-package com.azavea.rf.tool.eval
+package com.azavea.rf.tool.eval.old
 
 import com.azavea.rf.tool.ast._
 

@@ -38,26 +38,26 @@ object BufferingInterpreter extends LazyLogging {
             if (buffer > 0)
               tileSource(sr, true, z, x, y).map({ interp =>
                 interp.map({ tile =>
-                  LiteralRaster(id, tile.withBuffer(buffer), md)
+                  LiteralTile(id, tile.withBuffer(buffer), md)
                 })
               })
             else
               tileSource(sr, true, z, x, y).map({ interp =>
                 interp.map({ tile =>
-                  LiteralRaster(id, tile.centerTile, md)
+                  LiteralTile(id, tile.centerTile, md)
                 })
               })
           case pr@ProjectRaster(id, _, band, celltype, md) =>
             if (buffer > 0)
               tileSource(pr, true, z, x, y).map({ interp =>
                 interp.map({ tile =>
-                  LiteralRaster(id, tile.withBuffer(buffer), md)
+                  LiteralTile(id, tile.withBuffer(buffer), md)
                 })
               })
             else
               tileSource(pr, true, z, x, y).map({ interp =>
                 interp.map({ tile =>
-                  LiteralRaster(id, tile.centerTile, md)
+                  LiteralTile(id, tile.centerTile, md)
                 })
               })
           case f: FocalOperation =>
@@ -114,7 +114,7 @@ object BufferingInterpreter extends LazyLogging {
         case ToolReference(_, _) => sys.error("TMS: Attempt to evaluate a ToolReference!")
         case SceneRaster(_, _, _, _, _) => sys.error("TMS: Attempt to evaluate a SceneRaster!")
         case ProjectRaster(_, _, _, _, _) => sys.error("TMS: Attempt to evaluate a ProjectRaster!")
-        case LiteralRaster(_, lt, _) => lt
+        case LiteralTile(_, lt, _) => lt
         case Constant(_, const, _) => LazyTile.Constant(const)
         /* --- LOCAL OPERATIONS --- */
         case Addition(args, id, _) =>

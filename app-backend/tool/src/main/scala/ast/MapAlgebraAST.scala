@@ -414,7 +414,7 @@ object MapAlgebraAST {
     def withMetadata(newMd: NodeMetadata): MapAlgebraAST = copy(metadata = Some(newMd))
   }
 
-  case class LiteralRaster(id: UUID, lt: LazyTile, metadata: Option[NodeMetadata]) extends MapAlgebraLeaf {
+  case class LiteralTile(id: UUID, lt: Tile, metadata: Option[NodeMetadata]) extends MapAlgebraLeaf {
     val `type` = "rasterLiteral"
     def sources: Seq[MapAlgebraAST.MapAlgebraLeaf] = List(this)
     def substitute(substitutions: Map[UUID, MapAlgebraAST]): Option[MapAlgebraAST] = Some(this)

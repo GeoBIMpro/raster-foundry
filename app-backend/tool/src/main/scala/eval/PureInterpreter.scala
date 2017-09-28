@@ -23,7 +23,7 @@ object PureInterpreter extends LazyLogging {
   /** Does a given AST have at least one source? */
   private def hasSources[M: Monoid](ast: MapAlgebraAST): Interpreted[M] = {
     if (ast.sources.exists({
-      case Source(_, _) | LiteralRaster(_, _, _) | SceneRaster(_, _, _, _, _) | ProjectRaster(_, _, _, _, _) => true
+      case Source(_, _) | LiteralTile(_, _, _) | SceneRaster(_, _, _, _, _) | ProjectRaster(_, _, _, _, _) => true
       case _ => false
     })) Valid(Monoid.empty) else {
       Invalid(NonEmptyList.of(NoSourceLeaves(ast.id)))
@@ -48,7 +48,7 @@ object PureInterpreter extends LazyLogging {
     case SceneRaster(id, _,  _, _, _) => Valid(Monoid.empty)
     case ProjectRaster(id, _, _, _, _) => Valid(Monoid.empty)
     case Constant(_, _, _) => Valid(Monoid.empty)
-    case LiteralRaster(_, _, _) => Valid(Monoid.empty)
+    case LiteralTile(_, _, _) => Valid(Monoid.empty)
 
     /* Unary operations must have only one arguments */
     case op: UnaryOperation => {

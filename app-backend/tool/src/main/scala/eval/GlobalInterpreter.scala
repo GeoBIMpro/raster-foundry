@@ -35,13 +35,13 @@ object GlobalInterpreter extends LazyLogging {
           case sr@SceneRaster(_, sceneId, band, celltype, md) =>
             tileSource(sr).map({ interp =>
               interp.map({ tile =>
-                LiteralRaster(sceneId, tile.centerTile, md)
+                LiteralTile(sceneId, tile.centerTile, md)
               })
             })
           case pr@ProjectRaster(_, projId, band, celltype, md) =>
             tileSource(pr).map({ interp =>
               interp.map({ tile =>
-                LiteralRaster(projId, tile.centerTile, md)
+                LiteralTile(projId, tile.centerTile, md)
               })
             })
           case _ =>
@@ -85,7 +85,7 @@ object GlobalInterpreter extends LazyLogging {
       case ToolReference(_, _) => sys.error("Attempt to evaluate a ToolReference!")
       case SceneRaster(_, _, _, _, _) => sys.error("TMS: Attempt to evaluate a SceneRaster!")
       case ProjectRaster(_, _, _, _, _) => sys.error("TMS: Attempt to evaluate a ProjectRaster!")
-      case LiteralRaster(_, lt, _) => lt
+      case LiteralTile(_, lt, _) => lt
 
       /* --- LOCAL OPERATIONS --- */
       case Addition(args, id, _) =>

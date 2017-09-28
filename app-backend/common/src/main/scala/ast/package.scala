@@ -5,7 +5,6 @@ import com.azavea.rf.database.tables.{ToolRuns, Tools}
 import com.azavea.rf.datamodel.{Tool, ToolRun, User}
 import com.azavea.rf.tool.ast.MapAlgebraAST
 import com.azavea.rf.tool.ast.MapAlgebraAST._
-import com.azavea.rf.tool.ast.assembleSubstitutions
 import com.azavea.rf.tool.eval.{ASTDecodeError, DatabaseError, PureInterpreter}
 
 import cats._
