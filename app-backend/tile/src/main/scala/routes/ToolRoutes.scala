@@ -6,17 +6,18 @@ import com.azavea.rf.database.Database
 import com.azavea.rf.datamodel.User
 import com.azavea.rf.tile._
 import com.azavea.rf.tile.image._
-import com.azavea.rf.tile.tool.TileSources
+import com.azavea.rf.tile.tool._
 import com.azavea.rf.tool.ast._
 import com.azavea.rf.tool.eval._
 import com.azavea.rf.tool.maml._
 
 import com.azavea.maml.ast._
 import com.azavea.maml.eval._
+import com.azavea.maml.eval.directive._
 import com.azavea.maml.util._
-
+import com.azavea.maml.serve._
 import com.typesafe.scalalogging.LazyLogging
-import de.heikoseeberger.akkahttpcirce.CirceSupport._
+import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import geotrellis.raster._
 import geotrellis.raster.render._
 import akka.http.scaladsl.marshalling._
@@ -126,10 +127,20 @@ class ToolRoutes(implicit val database: Database) extends Authentication
     }
   }
 
+  val tileResolver = new RfmlTileResolver(implicitly[Database], implicitly[ExecutionContext])
+  val tmsInterpreter = Interpreter.buffering(
+    ScopedDirective.pure[TileLiteral](SourceDirectives.tileLiteral),
+    ScopedDirective.pure[IntLiteral](SourceDirectives.intLiteral),
+    ScopedDirective.pure[FocalMax](FocalDirectives.focalMax),
+    ScopedDirective.pure[Addition](OpDirectives.additionTile orElse OpDirectives.additionInt orElse OpDirectives.additionDouble),
+    ScopedDirective.pure[Equal](OpDirectives.equalTo)
+  )
+
+
+
   /** The central endpoint for ModelLab; serves TMS tiles given a [[ToolRun]] specification */
   def tms(
-    toolRunId: UUID, user: User,
-    source: (RFMLRaster, Boolean, Int, Int, Int) => Future[Interpreted[TileWithNeighbors]]
+    toolRunId: UUID, user: User
   ): Route =
     (handleExceptions(interpreterExceptionHandler) & handleExceptions(circeDecodingError)) {
       traceName("toolrun-tms") {
@@ -138,42 +149,37 @@ class ToolRoutes(implicit val database: Database) extends Authentication
             'node.?,
             'cramp.?("viridis")
           ) { (node, colorRampName) =>
+            val nodeId = node.map(UUID.fromString(_))
+            val colorRamp = providedRamps.get(colorRampName).getOrElse(providedRamps("viridis"))
+            val components = for {
+              (expression, md) <- LayerCache.toolEvalRequirements(toolRunId, nodeId, user).map(_.asMaml)
+              cMap  <- LayerCache.toolRunColorMap(toolRunId, nodeId, user, colorRamp, colorRampName)
+            } yield (expression, md, cMap)
+
             complete {
-              val nodeId = node.map(UUID.fromString(_))
-              val colorRamp = providedRamps.get(colorRampName).getOrElse(providedRamps("viridis"))
-              val responsePng: OptionT[Future, Png] = for {
-                (ast, md) <- LayerCache.toolEvalRequirements(toolRunId, nodeId, user).map(_.asMaml)
-                tile  <- OptionT({
-                        val literalAst: Future[Interpreted[MapAlgebraAST]] =
-                          BufferingInterpreter.literalize(ast, source, z, x, y)
-                        val futureTile: Future[Interpreted[Tile]] = literalAst.map({ validatedAst =>
-                          validatedAst.andThen({ resolvedAst =>
-                            logger.debug(s"Attempting to retrieve TMS tile at $z/$x/$y")
-                            BufferingInterpreter.interpret(resolvedAst, 256)(z, x, y).andThen({ lztile =>
-                              lztile.evaluateDouble match {
-                                case Some(t) =>
-                                  Valid(t)
-                                case None =>
-                                  Invalid(NEL.of(LazyTileEvaluationError(ast)))
-                              }
+              components.value.flatMap({ data =>
+                val result: Future[Option[Png]] = data match {
+                  case Some((expression, md, cMap)) =>
+                    val litTree = tileResolver.resolveBuffered(expression)(z, x, y)
+                    litTree.map({ resolvedAst =>
+                      resolvedAst
+                        .andThen({ tmsInterpreter(_) })
+                        .andThen({ _.as[Tile] }) match {
+                          case Valid(tile) =>
+                            logger.debug(s"Tile successfully produced at $z/$x/$y")
+                            md.flatMap({ meta =>
+                              meta.renderDef.map({ renderDef => tile.renderPng(renderDef) })
+                            }).orElse({
+                              Some(tile.renderPng(cMap))
                             })
-                          })
-                        })
-                        futureTile.map({ validatedTile =>
-                          validatedTile match {
-                            case Valid(t) => Option(t)
-                            case Invalid(errors) => throw InterpreterException(errors)
-                          }
-                        })
-                      })
-                cMap  <- LayerCache.toolRunColorMap(toolRunId, nodeId, user, colorRamp, colorRampName)
-              } yield {
-                logger.debug(s"Tile successfully produced at $z/$x/$y")
-                md.flatMap({ meta =>
-                  meta.renderDef.map({ renderDef => tile.renderPng(renderDef) })
-                }).getOrElse(tile.renderPng(cMap))
-              }
-              responsePng.value
+                          case Invalid(nel) =>
+                            throw new InterpreterException(nel)
+                        }
+                    })
+                  case _ => Future.successful(None)
+                }
+                result
+              })
             }
           }
         }

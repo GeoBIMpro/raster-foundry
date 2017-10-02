@@ -2,9 +2,10 @@ package com.azavea.rf.batch
 
 import com.azavea.rf.tool.ast._
 import com.azavea.rf.tool.eval._
+import com.azavea.rf.tool.maml.{ProjectRaster => PrRaster, SceneRaster => ScRaster, _}
 import com.azavea.rf.tool.ast.MapAlgebraAST._
-import com.azavea.rf.tool.eval.Interpreted
 
+import com.azavea.maml.eval._
 import cats.data.NonEmptyList
 import cats.data.Validated._
 import cats.implicits._
@@ -171,11 +172,11 @@ package object ast {
 
     /* Guarantee correctness before performing Map Algebra */
     val rdds = ast.sources.filter({
-      case SceneRaster(_, _, _, _, _) | ProjectRaster(_, _, _, _, _) => true
+      case MapAlgebraAST.SceneRaster(_, _, _, _, _) | MapAlgebraAST.ProjectRaster(_, _, _, _, _) => true
       case _ => false
     }).toList.asInstanceOf[List[RFMLRaster]].map({
-      case sr@SceneRaster(id, _, _, _, _) => id -> fetch(sr, zoom, sceneLocs, projLocs)
-      case pr@ProjectRaster(id, _, _, _, _) => id -> fetch(pr, zoom, sceneLocs, projLocs)
+      case sr@MapAlgebraAST.SceneRaster(id, _, _, _, _) => id -> fetch(sr, zoom, sceneLocs, projLocs)
+      case pr@MapAlgebraAST.ProjectRaster(id, _, _, _, _) => id -> fetch(pr, zoom, sceneLocs, projLocs)
     }).toMap.sequence
 
     rdds.map({ case rs => eval(ast, rs) match {
@@ -192,9 +193,9 @@ package object ast {
     projLocs: Map[UUID, List[(UUID, String)]]
   )(implicit sc: SparkContext): Interpreted[TileLayerRDD[SpatialKey]] = raster match {
 
-    case ProjectRaster(id, _, None, _, _) => Invalid(NonEmptyList.of(NoBandGiven(id)))
-    case ProjectRaster(id, projId, Some(band), maybeND, _) => getStores(projId, projLocs) match {
-      case None => Invalid(NonEmptyList.of(AttributeStoreFetchError(id)))
+    case pr@ProjectRaster(id, _, None, _, _) => Invalid(NonEmptyList.of(NonEvaluableNode(pr.asMaml._1, Some("no band given"))))
+    case pr@ProjectRaster(id, projId, Some(band), maybeND, _) => getStores(projId, projLocs) match {
+      case None => Invalid(NonEmptyList.of(NonEvaluableNode(pr.asMaml._1, Some("attribute store error"))))
       case Some(stores) => {
         val rdds: List[TileLayerRDD[SpatialKey]] =
           stores.map({ case (sceneId, store) =>
@@ -208,9 +209,9 @@ package object ast {
         Valid(rdds.reduce(_ merge _))
       }
     }
-    case SceneRaster(id, _, None, _, _) => Invalid(NonEmptyList.of(NoBandGiven(id)))
-    case SceneRaster(id, projId, Some(band), maybeND, _) => getStore(projId, sceneLocs) match {
-      case None => Invalid(NonEmptyList.of(AttributeStoreFetchError(id)))
+    case sr@SceneRaster(id, _, None, _, _) => Invalid(NonEmptyList.of(NonEvaluableNode(sr.asMaml._1, Some("no band given"))))
+    case sr@SceneRaster(id, projId, Some(band), maybeND, _) => getStore(projId, sceneLocs) match {
+      case None => Invalid(NonEmptyList.of(NonEvaluableNode(sr.asMaml._1, Some("attribute store error"))))
       case Some(store) => {
         val rdd = S3LayerReader(store)
           .read[SpatialKey, MultibandTile, TileLayerMetadata[SpatialKey]](LayerId(projId.toString, zoom))

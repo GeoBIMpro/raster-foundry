@@ -4,9 +4,8 @@ import com.azavea.rf.database.Database
 import com.azavea.rf.database.tables.{ToolRuns, Tools}
 import com.azavea.rf.datamodel.{Tool, ToolRun, User}
 import com.azavea.rf.tool.ast.MapAlgebraAST
-import com.azavea.rf.tool.ast.MapAlgebraAST._
-import com.azavea.rf.tool.eval.{ASTDecodeError, DatabaseError, PureInterpreter}
 
+import com.azavea.maml.eval._
 import cats._
 import cats.data._
 import cats.implicits._
@@ -22,18 +21,10 @@ package object ast {
   /** Validate an AST, given some ToolRun. In the case of success, returns
     * the zero element of some specified Monoid.
     */
-  def validateTree[M: Monoid](ast: MapAlgebraAST): M =
-    PureInterpreter.interpret[M](ast, true) match {
-      case Valid(a) => a
-      case Invalid(nel) => throw InterpreterException(nel)
-    }
+  def validateTree[M: Monoid](ast: MapAlgebraAST): M = ???
 
   /** Validate an AST, given some ToolRun. In the case of success, returns
     * the zero element of some specified Monoid.
     */
-  def validateTreeWithSources[M: Monoid](ast: MapAlgebraAST): M =
-    PureInterpreter.interpret[M](ast, false) match {
-      case Valid(a) => a
-      case Invalid(nel) => throw InterpreterException(nel)
-    }
+  def validateTreeWithSources[M: Monoid](ast: MapAlgebraAST): M = ???
 }

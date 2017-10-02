@@ -12,6 +12,7 @@ import cats.implicits._
 
 trait MamlAdapter {
   def rfmlAst: MapAlgebraAST
+
   def asMaml: (Expression, Option[NodeMetadata]) = {
     def eval(ast: MapAlgebraAST): Expression = {
       val args = ast.args.map(eval)

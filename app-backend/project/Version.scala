@@ -43,5 +43,5 @@ object Version {
   val scalaCheck         = "1.13.4"
   val kamon              = "0.6.7"
   val kamonAkkaHttp      = "0.6.8"
-  val maml               = "0.0.2-d5f8ed5"
+  val maml               = "0.0.2-0ab5518"
 }
