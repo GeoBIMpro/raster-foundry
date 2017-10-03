@@ -167,8 +167,9 @@ object LayerCache extends Config with LazyLogging with KamonTrace {
                         tileResolver.resolveForExtent(ast.asMaml._1, zoom, extent)
                           .map({ validatedAst => validatedAst.toOption })
                       )
-        tile <- OptionT.fromOption[Future](globalInterpreter(literalAst) match {
-                  case Valid(lztile) => Some(lztile.asInstanceOf[Tile])
+        tile <- OptionT.fromOption[Future](
+                  globalInterpreter(literalAst).andThen({ _.as[Tile] }) match {
+                  case Valid(tile) => Some(tile)
                   case Invalid(e) => None
                 })
       } yield {

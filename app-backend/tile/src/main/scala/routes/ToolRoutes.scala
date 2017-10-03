@@ -152,29 +152,31 @@ class ToolRoutes(implicit val database: Database) extends Authentication
             val nodeId = node.map(UUID.fromString(_))
             val colorRamp = providedRamps.get(colorRampName).getOrElse(providedRamps("viridis"))
             val components = for {
-              (expression, md) <- LayerCache.toolEvalRequirements(toolRunId, nodeId, user).map(_.asMaml)
+              (expression, metadata) <- LayerCache.toolEvalRequirements(toolRunId, nodeId, user).map(_.asMaml)
               cMap  <- LayerCache.toolRunColorMap(toolRunId, nodeId, user, colorRamp, colorRampName)
-            } yield (expression, md, cMap)
+            } yield (expression, metadata, cMap)
 
             complete {
               components.value.flatMap({ data =>
                 val result: Future[Option[Png]] = data match {
-                  case Some((expression, md, cMap)) =>
-                    val litTree = tileResolver.resolveBuffered(expression)(z, x, y)
-                    litTree.map({ resolvedAst =>
-                      resolvedAst
-                        .andThen({ tmsInterpreter(_) })
-                        .andThen({ _.as[Tile] }) match {
-                          case Valid(tile) =>
-                            logger.debug(s"Tile successfully produced at $z/$x/$y")
-                            md.flatMap({ meta =>
-                              meta.renderDef.map({ renderDef => tile.renderPng(renderDef) })
-                            }).orElse({
-                              Some(tile.renderPng(cMap))
-                            })
-                          case Invalid(nel) =>
-                            throw new InterpreterException(nel)
-                        }
+                  case Some((expression, metadata, cMap)) =>
+                    val literalTree = tileResolver.resolveBuffered(expression)(z, x, y)
+                    val interpretedTile: Future[Interpreted[Tile]] =
+                      literalTree.map({ resolvedAst =>
+                        resolvedAst
+                          .andThen({ tmsInterpreter(_) })
+                          .andThen({ _.as[Tile] })
+                      })
+                    interpretedTile.map({
+                      case Valid(tile) =>
+                        logger.debug(s"Tile successfully produced at $z/$x/$y")
+                        metadata.flatMap({ md =>
+                          md.renderDef.map({ renderDef => tile.renderPng(renderDef) })
+                        }).orElse({
+                          Some(tile.renderPng(cMap))
+                        })
+                      case Invalid(nel) =>
+                        throw new InterpreterException(nel)
                     })
                   case _ => Future.successful(None)
                 }
